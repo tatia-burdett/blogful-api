@@ -1,6 +1,6 @@
 const knex = require('knex')
 const app = require('../src/app')
-const { makeArticlesArray } = require('./articles.fixtures')
+const { makeArticlesArray, makeMaliciousArticle } = require('./articles.fixtures')
 
 describe('Articles Endpoints', function() {
   let db
@@ -8,7 +8,7 @@ describe('Articles Endpoints', function() {
   before('make knex instance', () => {
     db = knex({
       client: 'pg',
-      connection: process.env.TEST_DB_URL
+      connection: process.env.TEST_DB_URL,
     })
     app.set('db', db)
   })
@@ -17,11 +17,11 @@ describe('Articles Endpoints', function() {
 
   before('clean the table', () => db('blogful_articles').truncate())
 
-  afterEach('cleanup', () => db('blogful_articles').truncate())
+  afterEach('cleanup',() => db('blogful_articles').truncate())
 
   describe(`GET /articles`, () => {
-    context('Given there are no articles', () => {
-      it('responds with 200 and an empty array list', () => {
+    context(`Given no articles`, () => {
+      it(`responds with 200 and an empty list`, () => {
         return supertest(app)
           .get('/articles')
           .expect(200, [])
@@ -41,6 +41,26 @@ describe('Articles Endpoints', function() {
         return supertest(app)
           .get('/articles')
           .expect(200, testArticles)
+      })
+    })
+
+    context(`Given an XSS attack article`, () => {
+      const { maliciousArticle, expectedArticle } = makeMaliciousArticle()
+
+      beforeEach('insert malicious article', () => {
+        return db
+          .into('blogful_articles')
+          .insert([ maliciousArticle ])
+      })
+
+      it('removes XSS attack content', () => {
+        return supertest(app)
+          .get(`/articles`)
+          .expect(200)
+          .expect(res => {
+            expect(res.body[0].title).to.eql(expectedArticle.title)
+            expect(res.body[0].content).to.eql(expectedArticle.content)
+          })
       })
     })
   })
@@ -72,6 +92,26 @@ describe('Articles Endpoints', function() {
           .expect(200, expectedArticle)
       })
     })
+
+    context(`Given an XSS attack article`, () => {
+      const { maliciousArticle, expectedArticle } = makeMaliciousArticle()
+
+      beforeEach('insert malicious article', () => {
+        return db
+          .into('blogful_articles')
+          .insert([ maliciousArticle ])
+      })
+
+      it('removes XSS attack content', () => {
+        return supertest(app)
+          .get(`/articles/${maliciousArticle.id}`)
+          .expect(200)
+          .expect(res => {
+            expect(res.body.title).to.eql(expectedArticle.title)
+            expect(res.body.content).to.eql(expectedArticle.content)
+          })
+      })
+    })
   })
 
   describe(`POST /articles`, () => {
@@ -80,11 +120,12 @@ describe('Articles Endpoints', function() {
       const newArticle = {
         title: 'Test new article',
         style: 'Listicle',
-        content: 'Test new content...'
+        content: 'Test new article content...'
       }
       return supertest(app)
         .post('/articles')
         .send(newArticle)
+        .expect(201)
         .expect(res => {
           expect(res.body.title).to.eql(newArticle.title)
           expect(res.body.style).to.eql(newArticle.style)
@@ -95,10 +136,10 @@ describe('Articles Endpoints', function() {
           const actual = new Date(res.body.date_published).toLocaleString()
           expect(actual).to.eql(expected)
         })
-        .then(postRes => 
+        .then(res =>
           supertest(app)
-            .get(`/articles/${postRes.body.id}`)  
-            .expect(postRes.body)
+            .get(`/articles/${res.body.id}`)
+            .expect(res.body)
         )
     })
 
@@ -121,6 +162,18 @@ describe('Articles Endpoints', function() {
             error: { message: `Missing '${field}' in request body` }
           })
       })
+    })
+
+    it('removes XSS attack content from response', () => {
+      const { maliciousArticle, expectedArticle } = makeMaliciousArticle()
+      return supertest(app)
+        .post(`/articles`)
+        .send(maliciousArticle)
+        .expect(201)
+        .expect(res => {
+          expect(res.body.title).to.eql(expectedArticle.title)
+          expect(res.body.content).to.eql(expectedArticle.content)
+        })
     })
   })
 })

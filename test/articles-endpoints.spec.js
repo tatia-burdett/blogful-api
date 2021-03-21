@@ -10,7 +10,7 @@ describe('Articles Endpoints', function() {
 
     db = knex({
       client: 'pg',
-      connection: process.env.TEST_DB_URL,
+      connection: process.env.TEST_DATABASE_URL,
     })
     app.set('db', db)
 
@@ -164,7 +164,7 @@ describe('Articles Endpoints', function() {
           expect(res.body.style).to.eql(newArticle.style)
           expect(res.body.content).to.eql(newArticle.content)
           expect(res.body).to.have.property('id')
-          expect(res.headers.location).to.eql(`/api/articles/${res.body.id}`)
+          e o.eql(`/api/articles/${res.body.id}`)
           const expected = new Intl.DateTimeFormat('en-US').format(new Date())
           const actual = new Intl.DateTimeFormat('en-US').format(new Date(res.body.date_published))
           expect(actual).to.eql(expected)
@@ -308,7 +308,7 @@ describe('Articles Endpoints', function() {
             }
           })
       })
-
+w
       it(`responds with 204 when updating only a subset of fields`, () => {
         const idToUpdate = 2
         const updateArticle = {
